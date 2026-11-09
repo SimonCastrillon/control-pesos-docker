@@ -4,41 +4,40 @@ API para verificar lotes de producto por peso, construida con **Flask** y **Post
 
 La API recibe los pesos de una muestra, determina si el lote es conforme, guarda el resultado en PostgreSQL y permite consultar el historial. La API se comunica con la base de datos por el **nombre del servicio** (`db`) dentro de una red propia de Docker, nunca por `localhost` ni por una IP fija.
 
-> \\\*\\\*Nota:\\\*\\\* el criterio de conformidad es didáctico. No reproduce ninguna norma metrológica.
+> **Nota:** el criterio de conformidad es didáctico. No reproduce ninguna norma metrológica.
 
-
-
-```
+---
 
 ## Estructura del repositorio
 
 ```
-
 control-pesos-docker/
-├── .github/workflows/ci.yml   # CI: pruebas + construcción de imágenes
+├── .github/workflows/ci.yml   # CI: pruebas, construcción de imágenes e integración
 ├── docker-compose.yml         # servicios api y db, red, volumen y variables
 ├── .env.example               # plantilla de variables (el .env real NO se sube)
+├── .gitattributes
 ├── .gitignore
 ├── README.md
 └── api/
-├── Dockerfile
-├── .dockerignore
-├── requirements.txt       # dependencias de producción
-├── requirements-dev.txt   # producción + pytest
-├── src/
-│   ├── app.py             # endpoints HTTP (Flask)
-│   ├── logica.py          # reglas de verificación (sin dependencias externas)
-│   └── db.py              # conexión y consultas a PostgreSQL
-└── tests/
-└── test\_logica.py
-
+    ├── Dockerfile
+    ├── .dockerignore
+    ├── requirements.txt       # dependencias de producción
+    ├── requirements-dev.txt   # pytest (pruebas unitarias)
+    ├── src/
+    │   ├── __init__.py
+    │   ├── app.py             # endpoints HTTP (Flask)
+    │   ├── logica.py          # reglas de verificación (sin dependencias externas)
+    │   └── db.py              # conexión y consultas a PostgreSQL
+    └── tests/
+        ├── __init__.py
+        └── test_logica.py
 ```
 
 ---
 
 ## Requisitos
 
-- \\\[Docker Desktop](https://docs.docker.com/desktop/) abierto, con el motor en estado \\\*Engine running\\\*.
+- [Docker Desktop](https://docs.docker.com/desktop/) abierto, con el motor en estado *Engine running*.
 - Git.
 - Python 3.12 o superior, solo para correr las pruebas sin Docker (opcional).
 
@@ -46,25 +45,38 @@ control-pesos-docker/
 
 ## 1. Configuración
 
-Clona el repositorio y crea el archivo `.env` a partir de la plantilla:
+Clona el repositorio:
 
 ```bash
 git clone https://github.com/SimonCastrillon/control-pesos-docker.git
 cd control-pesos-docker
-copy .env.example .env        # Linux/Mac: cp .env.example .env
+```
+
+Crea el archivo `.env` a partir de la plantilla.
+
+**Windows (CMD o PowerShell):**
+
+```bat
+copy .env.example .env
+```
+
+**Linux / Mac / Git Bash:**
+
+```bash
+cp .env.example .env
 ```
 
 Edita `.env` y cambia la contraseña:
 
 ```env
-POSTGRES\\\_DB=control\\\_pesos
-POSTGRES\\\_USER=calidad
-POSTGRES\\\_PASSWORD=cambia-esta-clave
+POSTGRES_DB=control_pesos
+POSTGRES_USER=calidad
+POSTGRES_PASSWORD=cambia-esta-clave
 ```
 
-\---
+---
 
-## 2\. Levantar los contenedores
+## 2. Levantar los contenedores
 
 ```bash
 docker compose up --build
@@ -78,9 +90,9 @@ Verificar que ambos contenedores están corriendo (en otra terminal):
 docker ps
 ```
 
-\---
+---
 
-## 3\. Probar la API
+## 3. Probar la API
 
 ### Endpoints
 
@@ -99,7 +111,7 @@ docker ps
 curl http://localhost:8000/salud
 curl http://localhost:8000/salud/db
 
-curl -X POST http://localhost:8000/verificaciones -H "Content-Type: application/json" -d "{\\\\"lote\\\\":\\\\"L-001\\\\",\\\\"pesos\\\\":\\\[500.5,501.0,499.8,500.9],\\\\"nominal\\\\":500,\\\\"tolerancia\\\\":15}"
+curl -X POST http://localhost:8000/verificaciones -H "Content-Type: application/json" -d "{\"lote\":\"L-001\",\"pesos\":[500.5,501.0,499.8,500.9],\"nominal\":500,\"tolerancia\":15}"
 
 curl http://localhost:8000/verificaciones
 ```
@@ -111,7 +123,7 @@ Invoke-RestMethod http://localhost:8000/salud/db
 
 Invoke-RestMethod -Method Post -Uri http://localhost:8000/verificaciones `
   -ContentType "application/json" `
-  -Body '{"lote":"L-001","pesos":\\\[500.5,501.0,499.8,500.9],"nominal":500,"tolerancia":15}'
+  -Body '{"lote":"L-001","pesos":[500.5,501.0,499.8,500.9],"nominal":500,"tolerancia":15}'
 
 Invoke-RestMethod http://localhost:8000/verificaciones
 ```
@@ -119,27 +131,27 @@ Invoke-RestMethod http://localhost:8000/verificaciones
 **Linux / Mac / Git Bash:**
 
 ```bash
-curl -X POST http://localhost:8000/verificaciones \\\\
-  -H "Content-Type: application/json" \\\\
-  -d '{"lote":"L-001","pesos":\\\[500.5,501.0,499.8,500.9],"nominal":500,"tolerancia":15}'
+curl -X POST http://localhost:8000/verificaciones \
+  -H "Content-Type: application/json" \
+  -d '{"lote":"L-001","pesos":[500.5,501.0,499.8,500.9],"nominal":500,"tolerancia":15}'
 
 curl http://localhost:8000/verificaciones
 ```
 
-Respuesta esperada del `POST` (código 201):
+Respuesta esperada del `POST` (código 201; el `id` depende de los registros ya guardados):
 
 ```json
 {
+  "conforme": true,
   "id": 1,
+  "limite_inferior": 485.0,
   "n": 4,
   "promedio": 500.55,
-  "limite\\\_inferior": 485.0,
-  "unidades\\\_defectuosas": 0,
-  "conforme": true
+  "unidades_defectuosas": 0
 }
 ```
 
-El `GET /verificaciones` debe devolver el mismo registro. Esto demuestra que la API escribió en `db` y luego leyó desde `db`.
+El `GET /verificaciones` debe incluir ese registro, con su `lote` y su fecha `creado_en` (`limite_inferior` no se guarda). Esto demuestra que la API escribió en `db` y luego leyó desde `db`.
 
 ### Criterio de verificación
 
@@ -147,9 +159,9 @@ El `GET /verificaciones` debe devolver el mismo registro. Esto demuestra que la 
 * **Unidades defectuosas** = unidades con peso menor al límite inferior.
 * El lote es **conforme** si el promedio ≥ nominal **y** no hay unidades defectuosas.
 
-\---
+---
 
-## 4\. Evidencias de red y datos
+## 4. Evidencias de red y datos
 
 Ver la red propia y los dos contenedores conectados a ella:
 
@@ -160,7 +172,7 @@ docker network inspect red-app
 Consultar los datos directamente en PostgreSQL (con los valores de tu `.env`):
 
 ```bash
-docker compose exec db psql -U calidad -d control\\\_pesos -c "SELECT \\\* FROM verificaciones;"
+docker compose exec db psql -U calidad -d control_pesos -c "SELECT * FROM verificaciones;"
 ```
 
 Ver el volumen donde persisten los datos:
@@ -169,52 +181,86 @@ Ver el volumen donde persisten los datos:
 docker volume ls
 ```
 
-\---
+---
 
-## 5\. Apagar
+## 5. Apagar
+
+Detener y eliminar los contenedores (los datos se conservan en el volumen):
 
 ```bash
-docker compose down        # detiene y elimina los contenedores; los datos se conservan en el volumen
-docker compose down -v     # además elimina el volumen y TODOS los datos
+docker compose down
 ```
 
-\---
-
-## 6\. Pruebas unitarias (sin Docker)
+Detener los contenedores y además eliminar el volumen y **TODOS** los datos:
 
 ```bash
+docker compose down -v
+```
+
+---
+
+## 6. Pruebas unitarias (sin Docker)
+
+**Windows (CMD):**
+
+```bat
 cd api
 python -m venv .venv
-.venv\\\\Scripts\\\\activate          # Linux/Mac: source .venv/bin/activate
+.venv\Scripts\activate
 pip install -r requirements-dev.txt
 pytest -v
 ```
 
-\---
+**Windows (PowerShell):**
 
-## 7\. Integración continua (GitHub Actions)
+```powershell
+cd api
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+**Linux / Mac:**
+
+```bash
+cd api
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-dev.txt
+pytest -v
+```
+
+---
+
+## 7. Integración continua (GitHub Actions)
 
 El workflow `.github/workflows/ci.yml` se ejecuta en cada **push** y en cada **pull request** a `main`:
 
-1. **pruebas**: instala las dependencias y ejecuta `pytest`.
-2. **build**: construye las imágenes con `docker compose build`. Solo corre si las pruebas pasan.
+1. **pruebas**: con Python 3.12 instala `api/requirements-dev.txt` y ejecuta `pytest -v` en `api/`.
+2. **build**: solo corre si las pruebas pasan. Crea el `.env` desde `.env.example`, construye las imágenes con `docker compose build` y hace una prueba de integración:
+   * levanta los servicios con `docker compose up -d --wait`;
+   * consulta `/salud/db`;
+   * guarda el lote `CI-001` con un `POST` a `/verificaciones`;
+   * confirma con un `GET` que `CI-001` aparece en el historial.
 
-El resultado se ve en la pestaña **Actions** del repositorio. Un check verde indica que las pruebas pasaron y las imágenes se construyeron sin errores.
+   Si algo falla, muestra `docker compose logs`. Al final siempre limpia el entorno de CI con `docker compose down -v`.
 
-\---
+El resultado se ve en la pestaña **Actions** del repositorio. Un check verde indica que las pruebas pasaron, las imágenes se construyeron sin errores y la API guardó y leyó datos en PostgreSQL.
 
-## 8\. Seguridad y buenas prácticas
+---
+
+## 8. Seguridad y buenas prácticas
 
 * Las credenciales viven solo en `.env`, que está en `.gitignore`. El repositorio incluye `.env.example` como plantilla, sin valores reales.
 * El código no contiene contraseñas: las lee de variables de entorno.
-* `api/.dockerignore` excluye de la imagen cachés, entornos virtuales, pruebas y el `.env`.
+* `api/.dockerignore` excluye de la imagen cachés, entornos virtuales, pruebas, dependencias de desarrollo y el `.env`.
 * Las imágenes base usan versiones fijas (`python:3.12-slim`, `postgres:16-alpine`), no `latest`.
 * La API corre en el contenedor con un usuario sin privilegios.
 * El puerto de PostgreSQL no se expone al host: solo la API puede alcanzarlo dentro de la red `red-app`.
 
-\---
+---
 
 ## Autor
 
 Simon Esteban Castrillon Martinez · Integración continua · Politecnico Grancolombiano · 2026
-
