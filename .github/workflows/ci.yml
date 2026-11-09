@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: api
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias de desarrollo
+        run: pip install -r requirements-dev.txt
+
+      - name: Ejecutar pruebas unitarias
+        run: pytest -v
+
+  build:
+    runs-on: ubuntu-latest
+    needs: pruebas
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Crear .env desde la plantilla
+        run: cp .env.example .env
+
+      - name: Construir imágenes
+        run: docker compose build
+
+      - name: Levantar los servicios
+        run: docker compose up -d --wait
+
+      - name: Probar conexión de la API con la base de datos
+        run: curl --fail --retry 10 --retry-delay 2 --retry-all-errors http://localhost:8000/salud/db
+
+      - name: Guardar una verificación (POST)
+        run: |
+          curl --fail -X POST http://localhost:8000/verificaciones \
+            -H "Content-Type: application/json" \
+            -d '{"lote":"CI-001","pesos":[500.5,501.0,499.8,500.9],"nominal":500,"tolerancia":15}'
+
+      - name: Confirmar que la verificación quedó guardada (GET)
+        run: curl --fail --silent http://localhost:8000/verificaciones | grep CI-001
+
+      - name: Mostrar logs si algo falla
+        if: failure()
+        run: docker compose logs
+
+      - name: Apagar y limpiar
+        if: always()
+        run: docker compose down -v
