@@ -32,7 +32,7 @@ def inicializar():
 def info_conexion() -> dict:
     with conectar() as con:
         ip, base, version = con.execute(
-            "SELECT inet_server_addr()::text, current_database(), current_setting('server_version')"
+            "SELECT host(inet_server_addr()), current_database(), current_setting('server_version')"
         ).fetchone()
     return {"host_configurado": os.environ["DB_HOST"], "ip_servidor": ip,
             "base_datos": base, "version_postgres": version}
